@@ -34,6 +34,7 @@ class Planner {
   bool TooCloseToCarAhead(double car_s, double car_d, vector<vector<double>> sensor_fusion);
   bool CanSwitchLeft(double car_s, double car_d, vector<vector<double>> sensor_fusion);
   bool CanSwitchRight(double car_s, double car_d, vector<vector<double>> sensor_fusion);
+  double ClosestCenter(double car_d);
 
   vector<double> map_waypoints_x;
   vector<double> map_waypoints_y;

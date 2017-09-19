@@ -41,10 +41,12 @@ bool Planner::TooCloseToCarAhead(
     double car_s, double car_d, vector<vector<double>> sensor_fusion) {
   const int BUFFER = 40;
   for (const auto& sensor_datum : sensor_fusion) {
-    if (fabs(sensor_datum[D_IDX] - car_d) < 2 
-        && sensor_datum[S_IDX] - car_s < BUFFER) {
-      //std::cout << "car_d: " << car_d << ", other car's d: " << sensor_datum[D_IDX]
-          //<< ", car_s: " << car_s << "other car's s: " << sensor_datum[S_IDX] << std::endl;
+    double distance_to_car = sensor_datum[S_IDX] - car_s;
+    if (fabs(sensor_datum[D_IDX] - car_d) < 1 
+        && distance_to_car > 0
+        && distance_to_car < BUFFER) {
+      std::cout << "car_d: " << car_d << ", other car's d: " << sensor_datum[D_IDX]
+          << ", car_s: " << car_s << "other car's s: " << sensor_datum[S_IDX] << std::endl;
       return true;
     }
   } 
@@ -58,8 +60,10 @@ bool Planner::CanSwitchLeft(double car_s, double car_d, vector<vector<double>> s
   const int BUFFER = 40;
   int next_car_d = car_d - 4;
   for (const auto& sensor_datum : sensor_fusion) {
-    if (sensor_datum[S_IDX] - car_s < BUFFER 
-        && fabs(sensor_datum[D_IDX] - next_car_d) < 2) {
+    double distance_to_car = sensor_datum[S_IDX] - car_s;
+    if (distance_to_car > 0 
+        && distance_to_car < BUFFER
+        && fabs(sensor_datum[D_IDX] - next_car_d) < 1) {
       return false;
     }
   }
@@ -73,8 +77,10 @@ bool Planner::CanSwitchRight(double car_s, double car_d, vector<vector<double>> 
   const int BUFFER = 40;
   int next_car_d = car_d + 4;
   for (const auto& sensor_datum : sensor_fusion) {
-    if (sensor_datum[S_IDX] - car_s < BUFFER 
-        && fabs(sensor_datum[D_IDX] - next_car_d) < 2) {
+    double distance_to_car = sensor_datum[S_IDX] - car_s;
+    if (distance_to_car > 0 
+        && distance_to_car < BUFFER
+        && fabs(sensor_datum[D_IDX] - next_car_d) < 1) {
       return false;
     }
   }
@@ -92,9 +98,6 @@ void Planner::PlanPath(double car_x,
                        vector<double>& next_y_vals) {
   next_x_vals.clear();
   next_y_vals.clear();
-
-  Behavior behavior = NextBehavior(car_s, car_d, sensor_fusion);
-  std::cout << "Next behavior should be: " << behavior << std::endl;
 
   int path_size = previous_path_x.size();
   for(int i = 0; i < path_size; i++) {
@@ -118,15 +121,47 @@ void Planner::PlanPath(double car_x,
     d = frenet[1];
   }
 
-  double dist_inc = 0.5;  // ~50mph
+  Behavior behavior = NextBehavior(s, d, sensor_fusion);
+  std::cout << "Next behavior should be: " << behavior << std::endl;
+
+  double dist_inc, desired_d;
+  switch (behavior) {
+    case STAY_IDEAL_SPEED:
+      dist_inc = 0.5;  // ~50mph
+      desired_d = ClosestCenter(d);
+      break;
+    case SLOW_TO_SPEED_AHEAD:
+      dist_inc = 0.25;  // TODO(gilbertleung): actually slow to speed of car ahead
+      desired_d = ClosestCenter(d);
+      break;
+    case SWITCH_LEFT:
+      dist_inc = 0.5;
+      desired_d = ClosestCenter(d) - 4;
+      break;
+    case SWITCH_RIGHT:
+      dist_inc = 0.5;
+      desired_d = ClosestCenter(d) + 4;
+      break;
+  }
+
   for(int i = 0; i < 50 - path_size; i++) {
     vector<double> xy = utility::getXY(s + (i + 1) * dist_inc,
-                                       //d,
-                                       2, 
+                                       desired_d,
                                        map_waypoints_s,
                                        map_waypoints_x,
                                        map_waypoints_y);
     next_x_vals.push_back(xy[0]);
     next_y_vals.push_back(xy[1]);
   }
+}
+
+double Planner::ClosestCenter(double car_d) {
+  vector<int> CENTERS = {2, 6, 10};
+  int closest_center = CENTERS[0];
+  for (int center : CENTERS) {
+    if (fabs(center - car_d) < fabs(closest_center - car_d)) {
+      closest_center = center;
+    }
+  }
+  return closest_center;
 }
