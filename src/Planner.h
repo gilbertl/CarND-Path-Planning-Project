@@ -26,15 +26,21 @@ class Planner {
                 vector<double>& next_x_vals, 
                 vector<double>& next_y_vals);
  private:
+  static const int X_IDX;
+  static const int Y_IDX;
+  static const int VX_IDX;
+  static const int VY_IDX;
   static const int S_IDX;
   static const int D_IDX;
+  static const double SECS_PER_FRAME;
 
   Behavior NextBehavior(
-      double car_s, double car_d, vector<vector<double>> sensor_fusion);
-  bool TooCloseToCarAhead(double car_s, double car_d, vector<vector<double>> sensor_fusion);
-  bool CanSwitchLeft(double car_s, double car_d, vector<vector<double>> sensor_fusion);
-  bool CanSwitchRight(double car_s, double car_d, vector<vector<double>> sensor_fusion);
+      double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);
+  bool TooCloseToCarAhead(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);
+  bool CanSwitchLeft(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);
+  bool CanSwitchRight(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);
   double ClosestCenter(double car_d);
+  void PredictCarSD(vector<double> sensor_fusion_datum, double num_secs_ahead, double* s, double* d);
 
   vector<double> map_waypoints_x;
   vector<double> map_waypoints_y;
