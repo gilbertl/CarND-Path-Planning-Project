@@ -1,5 +1,6 @@
 #include "Planner.h"
 #include "utility.h"
+#include "spline.h"
 #include <math.h>
 #include <iostream>
 
@@ -27,6 +28,7 @@ const int Planner::S_IDX = 5;
 const int Planner::D_IDX = 6;
 
 const double Planner::SECS_PER_FRAME = 0.02;
+const double Planner::IDEAL_SPEED_M_PER_S = 22;
 
 Behavior Planner::NextBehavior(
     double seconds_ahead, double car_s, double car_d, 
@@ -125,18 +127,19 @@ void Planner::PlanPath(double car_x,
                        double car_y,
                        double car_s,
                        double car_d,
-                       vector<double> previous_path_x,
-                       vector<double> previous_path_y,
-                       vector<vector<double>> sensor_fusion,
-                       vector<double>& next_x_vals, 
-                       vector<double>& next_y_vals) {
-  next_x_vals.clear();
-  next_y_vals.clear();
+                       double car_yaw,
+                       const vector<double>& previous_path_x,
+                       const vector<double>& previous_path_y,
+                       const vector<vector<double>>& sensor_fusion,
+                       vector<double>* next_x_vals, 
+                       vector<double>* next_y_vals) {
+  next_x_vals->clear();
+  next_y_vals->clear();
 
   int path_size = previous_path_x.size();
   for(int i = 0; i < path_size; i++) {
-    next_x_vals.push_back(previous_path_x[i]);
-    next_y_vals.push_back(previous_path_y[i]);
+    next_x_vals->push_back(previous_path_x[i]);
+    next_y_vals->push_back(previous_path_y[i]);
   }
 
   double s, d;
@@ -158,35 +161,78 @@ void Planner::PlanPath(double car_x,
   Behavior behavior = NextBehavior(path_size * SECS_PER_FRAME, s, d, sensor_fusion);
   std::cout << "Next behavior should be: " << behavior << std::endl;
 
-  double dist_inc, desired_d;
+  double desired_speed, desired_d;
   switch (behavior) {
     case STAY_IDEAL_SPEED:
-      dist_inc = 0.5;  // ~50mph
+      desired_speed = IDEAL_SPEED_M_PER_S;
       desired_d = ClosestCenter(d);
       break;
     case SLOW_TO_SPEED_AHEAD:
-      dist_inc = 0.25;  // TODO(gilbertleung): actually slow to speed of car ahead
+      // TODO(gilbertleung): actually slow to speed of car ahead
+      desired_speed = IDEAL_SPEED_M_PER_S / 2; 
       desired_d = ClosestCenter(d);
       break;
     case SWITCH_LEFT:
-      dist_inc = 0.5;
+      desired_speed = IDEAL_SPEED_M_PER_S;
       desired_d = ClosestCenter(d) - 4;
       break;
     case SWITCH_RIGHT:
-      dist_inc = 0.5;
+      desired_speed = IDEAL_SPEED_M_PER_S;
       desired_d = ClosestCenter(d) + 4;
       break;
   }
 
-  for(int i = 0; i < 50 - path_size; i++) {
-    vector<double> xy = utility::getXY(s + (i + 1) * dist_inc,
+  double ref_x, ref_y, ref_x_prev, ref_y_prev, ref_yaw;
+  vector<double> ptsx, ptsy;
+  if (path_size < 2) {
+    ref_x = car_x;
+    ref_y = car_y;
+    ref_yaw = utility::deg2rad(car_yaw);
+    // Inteperloate one meter back.
+    ref_x_prev = car_x - cos(car_yaw);
+    ref_y_prev = car_y - sin(car_yaw);
+  } else {
+    ref_x = (*next_x_vals)[path_size-1];
+    ref_y = (*next_y_vals)[path_size-1];
+    ref_x_prev = (*next_x_vals)[path_size-2];
+    ref_y_prev = (*next_y_vals)[path_size-2];
+    ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+  }
+  ptsx.push_back(ref_x_prev);
+  ptsx.push_back(ref_x);
+  ptsy.push_back(ref_y_prev);
+  ptsy.push_back(ref_y);
+  // Add 3 more reference points on the desired lane, some distance apart.
+  for (int i = 0; i < 3; i++) {
+    vector<double> xy = utility::getXY(s + (i + 1) * 30,
                                        desired_d,
                                        map_waypoints_s,
                                        map_waypoints_x,
                                        map_waypoints_y);
-    next_x_vals.push_back(xy[0]);
-    next_y_vals.push_back(xy[1]);
+    ptsx.push_back(xy[0]);
+    ptsy.push_back(xy[1]);
   }
+  utility::globalToLocal(ref_x, ref_y, ref_yaw, &ptsx, &ptsy);
+
+  tk::spline spline;
+  spline.set_points(ptsx, ptsy);
+
+  double end_x = 30;
+  double end_y = spline(end_x);
+  double total_dist = sqrt(end_x * end_x + end_y * end_y);
+  int num_increments = total_dist / (SECS_PER_FRAME * desired_speed);
+  double x_increment = end_x / num_increments;
+  vector<double> new_xs, new_ys;
+  
+  for(int i = 0; i < 50 - path_size; i++) {
+    double x_local = (i + 1) * x_increment;
+    new_xs.push_back(x_local);
+    new_ys.push_back(spline(x_local));
+  }
+  utility::localToGlobal(ref_x, ref_y, ref_yaw, &new_xs, &new_ys);
+
+  next_x_vals->insert(std::end(*next_x_vals), std::begin(new_xs), std::end(new_xs));
+  next_y_vals->insert(std::end(*next_y_vals), std::begin(new_ys), std::end(new_ys));
 }
 
 double Planner::ClosestCenter(double car_d) {

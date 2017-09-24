@@ -20,11 +20,12 @@ class Planner {
                 double car_y,
                 double car_s,
                 double car_d,
-                vector<double> previous_path_x,
-                vector<double> previous_path_y,
-                vector<vector<double>> sensor_fusion,
-                vector<double>& next_x_vals, 
-                vector<double>& next_y_vals);
+                double car_yaw,
+                const vector<double>& previous_path_x,
+                const vector<double>& previous_path_y,
+                const vector<vector<double>>& sensor_fusion,
+                vector<double>* next_x_vals, 
+                vector<double>* next_y_vals);
  private:
   static const int X_IDX;
   static const int Y_IDX;
@@ -33,6 +34,7 @@ class Planner {
   static const int S_IDX;
   static const int D_IDX;
   static const double SECS_PER_FRAME;
+  static const double IDEAL_SPEED_M_PER_S;
 
   Behavior NextBehavior(
       double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);

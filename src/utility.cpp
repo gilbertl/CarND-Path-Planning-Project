@@ -1,3 +1,6 @@
+#include "Eigen-3.3/Eigen/Core"
+#include "Eigen-3.3/Eigen/QR"
+#include "Eigen-3.3/Eigen/LU"
 #include "utility.h"
 #include <math.h>
 
@@ -121,6 +124,38 @@ namespace utility {
 
   double distance(double x1, double y1, double x2, double y2) {
       return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
+  }
+
+  double deg2rad(double deg) {
+    return deg * M_PI / 180.0;
+  }
+
+  void globalToLocal(double ref_x, double ref_y, double ref_psi, vector<double>* xs, vector<double>* ys) {
+Eigen::Matrix3f T;
+    Eigen::Vector3f P;
+    T << cos(ref_psi), -sin(ref_psi), ref_x,
+         sin(ref_psi), cos(ref_psi), ref_y,
+         0,0,1;
+    for (int i = 0; i < xs->size(); i++) {
+      P << (*xs)[i], (*ys)[i], 1;
+      Eigen::Vector3f localV = T.inverse() * P;
+      (*xs)[i] = localV[0];
+      (*ys)[i] = localV[1];
+    }
+  }
+
+  void localToGlobal(double car_x, double car_y, double car_psi, vector<double>* xs, vector<double>* ys) {
+    Eigen::Matrix3f T;
+    Eigen::Vector3f P;
+    T << cos(car_psi), -sin(car_psi), car_x,
+         sin(car_psi), cos(car_psi), car_y,
+         0,0,1;
+    for (int i = 0; i < xs->size(); i++) {
+      P << (*xs)[i], (*ys)[i], 1;
+      Eigen::Vector3f globalV = T * P;
+      (*xs)[i] = globalV[0];
+      (*ys)[i] = globalV[1];
+    }
   }
 
 }  // end namepsace utility
