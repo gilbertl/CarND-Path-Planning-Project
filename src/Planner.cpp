@@ -40,19 +40,16 @@ void Planner::NextBehavior(double seconds_ahead, double car_s, double car_d, vec
     std::cout << "Sticking to last target of " << last_target_d << std::endl;
     *next_speed = ideal_speed;
     *next_d = last_target_d;
-  } else if (SlowCarAhead(seconds_ahead, car_s, car_d, sensor_fusion) 
-      && CanSwitchToD(seconds_ahead, car_s, car_d, sensor_fusion, ClosestCenter(car_d) - 4)) {
-    *next_speed = ideal_speed;
-    *next_d = ClosestCenter(car_d) - 4;
-  } else if (SlowCarAhead(seconds_ahead, car_s, car_d, sensor_fusion) 
-      && CanSwitchToD(seconds_ahead, car_s, car_d, sensor_fusion, ClosestCenter(car_d) + 4)) {
-    *next_speed = ideal_speed;
-    *next_speed = ideal_speed;
-    *next_d = ClosestCenter(car_d) + 4;
   } else if (!TooCloseToCarAhead(seconds_ahead, car_s, car_d, sensor_fusion, &car_ahead_speed)) {
     *next_speed = ideal_speed;
     *next_d = ClosestCenter(car_d);
-  } else {
+  } else if (CanSwitchToD(seconds_ahead, car_s, car_d, sensor_fusion, ClosestCenter(car_d) - 4)) {
+    *next_speed = ideal_speed;
+    *next_d = ClosestCenter(car_d) - 4;
+  } else if (CanSwitchToD(seconds_ahead, car_s, car_d, sensor_fusion, ClosestCenter(car_d) + 4)) {
+    *next_speed = ideal_speed;
+    *next_d = ClosestCenter(car_d) + 4;
+  } else  {
     *next_speed = fmax(last_target_speed - 0.13, car_ahead_speed * 0.8);
     *next_d = ClosestCenter(car_d);
   }
@@ -63,38 +60,13 @@ void Planner::NextBehavior(double seconds_ahead, double car_s, double car_d, vec
 }
 
 void Planner::PredictCarSD(vector<double> sensor_fusion_datum, double num_secs_ahead, double* s, double* d) {
-  double x = sensor_fusion_datum[X_IDX];
-  double y = sensor_fusion_datum[Y_IDX];
   double vx = sensor_fusion_datum[VX_IDX];
   double vy = sensor_fusion_datum[VY_IDX];
-  double new_x = x + vx * num_secs_ahead;
-  double new_y = y + vy * num_secs_ahead;
-  double angle = atan2(new_y - y, new_x - x);
-  vector<double> frenet = utility::getFrenet(new_x, new_y, angle, map_waypoints_x, map_waypoints_y);
-  *s = frenet[0];
-  *d = frenet[1];
-}
-
-bool Planner::SlowCarAhead(
-    double seconds_ahead, double car_s, double car_d, 
-    vector<vector<double>> sensor_fusion) {
-  const int QUALIFYING_DISTANCE_AHEAD = 80;
-  for (const auto& sensor_datum : sensor_fusion) {
-    double other_car_s, other_car_d;
-    PredictCarSD(sensor_datum, seconds_ahead, &other_car_s, &other_car_d);
-    double distance_to_car = other_car_s - car_s;
-    double vx = sensor_datum[VX_IDX];
-    double vy = sensor_datum[VY_IDX];
-    double car_ahead_speed = sqrt(vx * vx + vy * vy);
-    if (fabs(other_car_d - car_d) < 1 
-        && distance_to_car > 0
-        && distance_to_car < QUALIFYING_DISTANCE_AHEAD
-        && car_ahead_speed < IDEAL_SPEED_M_PER_S) {
-      std::cout << "Car ahead is too slow." << std::endl;
-      return true;
-    }
-  } 
-  return false;
+  double v = sqrt(vx * vx + vy * vy);
+  double old_s = sensor_fusion_datum[S_IDX];
+  double new_s = old_s + v * num_secs_ahead;
+  *s = new_s;
+  *d = sensor_fusion_datum[D_IDX];
 }
 
 bool Planner::TooCloseToCarAhead(
