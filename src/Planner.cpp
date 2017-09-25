@@ -106,8 +106,8 @@ bool Planner::CanSwitchToD(double seconds_ahead, double car_s, double car_d, vec
   if (target_d < 2 || target_d > 10) {
     return false;
   }
-  const int BUFFER_BEHIND = 10;
-  const int BUFFER_AHEAD = 80;
+  const int BUFFER_BEHIND = 15;
+  const int BUFFER_AHEAD = 30;
   for (const auto& sensor_datum : sensor_fusion) {
     double other_car_s, other_car_d;
     PredictCarSD(sensor_datum, seconds_ahead, &other_car_s, &other_car_d);
