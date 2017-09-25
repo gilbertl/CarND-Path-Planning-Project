@@ -16,7 +16,8 @@ Planner::Planner(vector<double> map_waypoints_x,
     map_waypoints_s(map_waypoints_s),
     map_waypoints_dx(map_waypoints_dx),
     map_waypoints_dy(map_waypoints_dy),
-    last_target_d(-1) {
+    last_target_d(-1),
+    last_target_speed(1) {
 }
 
 Planner::~Planner() {}
@@ -33,24 +34,27 @@ const double Planner::IDEAL_SPEED_M_PER_S = 22;
 
 void Planner::NextBehavior(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion, double* next_speed, double* next_d) {
   // TODO: maybe check if it's safe to switch to the current target lane.
-  if (last_target_d != - 1 && fabs(last_target_d - car_d) > 0.1) {
+  double ideal_speed = fmin(last_target_speed + 0.1, IDEAL_SPEED_M_PER_S);
+  double slower_speed = fmax(last_target_speed - 0.1, IDEAL_SPEED_M_PER_S / 3);
+  if (last_target_d != - 1 && fabs(last_target_d - car_d) > 0.3) {
     std::cout << "Sticking to last target of " << last_target_d << std::endl;
-    *next_speed = IDEAL_SPEED_M_PER_S;
+    *next_speed = ideal_speed;
     *next_d = last_target_d;
   } else if (!TooCloseToCarAhead(seconds_ahead, car_s, car_d, sensor_fusion)) {
-    *next_speed = IDEAL_SPEED_M_PER_S;
+    *next_speed = ideal_speed;
     *next_d = ClosestCenter(car_d);
   } else if (CanSwitchToD(seconds_ahead, car_s, car_d, sensor_fusion, ClosestCenter(car_d) - 4)) {
-    *next_speed = IDEAL_SPEED_M_PER_S;
+    *next_speed = ideal_speed;
     *next_d = ClosestCenter(car_d) - 4;
   } else if (CanSwitchToD(seconds_ahead, car_s, car_d, sensor_fusion, ClosestCenter(car_d) + 4)) {
-    *next_speed = IDEAL_SPEED_M_PER_S;
+    *next_speed = ideal_speed;
     *next_d = ClosestCenter(car_d) + 4;
   } else  {
-    *next_speed = IDEAL_SPEED_M_PER_S / 2;
+    *next_speed = slower_speed;
     *next_d = ClosestCenter(car_d);
   }
   last_target_d = *next_d;
+  last_target_speed = *next_speed;
 
   std::cout << "Next behavior: speed " << *next_speed << " d " << *next_d << std::endl;
 }
@@ -71,7 +75,8 @@ void Planner::PredictCarSD(vector<double> sensor_fusion_datum, double num_secs_a
 bool Planner::TooCloseToCarAhead(
     double seconds_ahead, double car_s, double car_d, 
     vector<vector<double>> sensor_fusion) {
-  const int BUFFER = 40;
+  const int BUFFER_AHEAD = 20;
+  const int BUFFER_BEHIND = -5;
   for (const auto& sensor_datum : sensor_fusion) {
     double other_car_s, other_car_d;
     PredictCarSD(sensor_datum, seconds_ahead, &other_car_s, &other_car_d);
@@ -85,8 +90,8 @@ bool Planner::TooCloseToCarAhead(
 */
     
     if (fabs(other_car_d - car_d) < 1.5 
-        && distance_to_car > 0
-        && distance_to_car < BUFFER) {
+        && distance_to_car > BUFFER_BEHIND
+        && distance_to_car < BUFFER_AHEAD) {
 /*
       std::cout << "car_d: " << car_d << ", other car's d: " << other_car_d
           << ", car_s: " << car_s << "other car's s: " << other_car_s << std::endl;
@@ -101,7 +106,7 @@ bool Planner::CanSwitchToD(double seconds_ahead, double car_s, double car_d, vec
   if (target_d < 2 || target_d > 10) {
     return false;
   }
-  const int BUFFER_BEHIND = 5;
+  const int BUFFER_BEHIND = 10;
   const int BUFFER_AHEAD = 80;
   for (const auto& sensor_datum : sensor_fusion) {
     double other_car_s, other_car_d;

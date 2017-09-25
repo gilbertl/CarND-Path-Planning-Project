@@ -50,6 +50,7 @@ class Planner {
   vector<double> map_waypoints_dy;
 
   double last_target_d;
+  double last_target_speed;
 };
 
 #endif
