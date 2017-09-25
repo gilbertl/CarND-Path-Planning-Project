@@ -36,11 +36,10 @@ class Planner {
   static const double SECS_PER_FRAME;
   static const double IDEAL_SPEED_M_PER_S;
 
-  Behavior NextBehavior(
-      double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);
+  void NextBehavior(
+      double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion, double* next_speed, double* next_d);
   bool TooCloseToCarAhead(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);
-  bool CanSwitchLeft(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);
-  bool CanSwitchRight(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion);
+  bool CanSwitchToD(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion, double target_d);
   double ClosestCenter(double car_d);
   void PredictCarSD(vector<double> sensor_fusion_datum, double num_secs_ahead, double* s, double* d);
 
@@ -49,6 +48,8 @@ class Planner {
   vector<double> map_waypoints_s;
   vector<double> map_waypoints_dx;
   vector<double> map_waypoints_dy;
+
+  double last_target_d;
 };
 
 #endif
