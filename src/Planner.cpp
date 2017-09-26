@@ -79,20 +79,10 @@ bool Planner::TooCloseToCarAhead(
     PredictCarSD(sensor_datum, seconds_ahead, &other_car_s, &other_car_d);
 
     double distance_to_car = other_car_s - car_s;
-/*
-    if (distance_to_car > 0 && distance_to_car < BUFFER) {
-      std::cout << "nearby... car_d: " << car_d << ", other car's d: " << other_car_d
-          << ", car_s: " << car_s << " other car's s: " << other_car_s << std::endl;
-    }
-*/
     
     if (fabs(other_car_d - car_d) < 1.5 
         && distance_to_car > BUFFER_BEHIND
         && distance_to_car < BUFFER_AHEAD) {
-/*
-      std::cout << "car_d: " << car_d << ", other car's d: " << other_car_d
-          << ", car_s: " << car_s << "other car's s: " << other_car_s << std::endl;
-*/
       double vx = sensor_datum[VX_IDX];
       double vy = sensor_datum[VY_IDX];
       *car_ahead_speed = sqrt(vx * vx + vy * vy);
@@ -114,10 +104,6 @@ bool Planner::CanSwitchToD(double seconds_ahead, double car_s, double car_d, vec
 
     double distance_to_car = other_car_s - car_s;
 
-/*
-    std::cout << "distance_to_car: " << distance_to_car
-        << ", d: " << fabs(other_car_d - target_d) << std::endl;
-*/
     if (distance_to_car > -BUFFER_BEHIND
         && distance_to_car < BUFFER_AHEAD
         && fabs(other_car_d - target_d) < 1.5) {
