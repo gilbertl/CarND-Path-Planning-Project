@@ -20,4 +20,4 @@ Other cars' locations are "predicted" by calculating their future position using
 
 # Avoiding Jerk
 
-We only increase speed and decrease speed by 0.1 m/s per time frame. There are more sophisticated ways to approacht this; for example, we can track the current car's acceleration to determine the maximum amount of change in speed the passengers can endure. I decided not to implement this as the current approach seems to work.
+I have a function MaxSpeedWithoutJerk in planner.cpp that calculates the max / min velocity according to the max jerk / acceleration parameters.

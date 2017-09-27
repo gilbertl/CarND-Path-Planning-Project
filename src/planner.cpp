@@ -17,7 +17,8 @@ Planner::Planner(vector<double> map_waypoints_x,
     map_waypoints_dx(map_waypoints_dx),
     map_waypoints_dy(map_waypoints_dy),
     last_target_d(-1),
-    last_target_speed(1) {
+    last_target_speed(0),
+    last_last_target_speed(0) {
 }
 
 Planner::~Planner() {}
@@ -32,28 +33,48 @@ const int Planner::D_IDX = 6;
 const double Planner::SECS_PER_FRAME = 0.02;
 const double Planner::IDEAL_SPEED_M_PER_S = 22;
 
+const double Planner::MAX_ACCELERATION_M_PER_S2 = 9.5;
+const double Planner::MAX_JERK_M_PER_S3 = 9.5;
+
+double Planner::MaxSpeedWithoutJerk(bool accelerating) {
+  // Satisfy max acceleration.
+  double maxSpeed = accelerating
+      ? MAX_ACCELERATION_M_PER_S2 * SECS_PER_FRAME + last_target_speed
+      : -MAX_ACCELERATION_M_PER_S2 * SECS_PER_FRAME + last_target_speed;
+  // Satisfy max jerk.
+  double jerkLimit1 = MAX_JERK_M_PER_S3 * SECS_PER_FRAME * SECS_PER_FRAME 
+      + 2 * last_target_speed - last_last_target_speed;
+  double jerkLimit2 = -MAX_JERK_M_PER_S3 * SECS_PER_FRAME * SECS_PER_FRAME 
+      + 2 * last_target_speed - last_last_target_speed;
+  return accelerating 
+      ? fmin(IDEAL_SPEED_M_PER_S, fmin(maxSpeed, fmax(jerkLimit1, jerkLimit2))) 
+      : fmax(0, fmax(maxSpeed, fmin(jerkLimit1, jerkLimit2)));
+}
+
 void Planner::NextBehavior(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion, double* next_speed, double* next_d) {
-  // TODO: maybe check if it's safe to switch to the current target lane.
-  double ideal_speed = fmin(last_target_speed + 0.13, IDEAL_SPEED_M_PER_S);
+  double max_speed = MaxSpeedWithoutJerk(true);
+  double min_speed = MaxSpeedWithoutJerk(false);
+
   double car_ahead_speed;
   if (last_target_d != - 1 && fabs(last_target_d - car_d) > 0.6) {
     std::cout << "Sticking to last target of " << last_target_d << std::endl;
-    *next_speed = ideal_speed;
+    *next_speed = max_speed;
     *next_d = last_target_d;
   } else if (!TooCloseToCarAhead(seconds_ahead, car_s, car_d, sensor_fusion, &car_ahead_speed)) {
-    *next_speed = ideal_speed;
+    *next_speed = max_speed;
     *next_d = ClosestCenter(car_d);
   } else if (CanSwitchToD(seconds_ahead, car_s, car_d, sensor_fusion, ClosestCenter(car_d) - 4)) {
-    *next_speed = ideal_speed;
+    *next_speed = max_speed;
     *next_d = ClosestCenter(car_d) - 4;
   } else if (CanSwitchToD(seconds_ahead, car_s, car_d, sensor_fusion, ClosestCenter(car_d) + 4)) {
-    *next_speed = ideal_speed;
+    *next_speed = max_speed;
     *next_d = ClosestCenter(car_d) + 4;
   } else  {
-    *next_speed = fmax(last_target_speed - 0.13, car_ahead_speed * 0.8);
+    *next_speed = fmax(min_speed, fmax(IDEAL_SPEED_M_PER_S, car_ahead_speed * 0.8));
     *next_d = ClosestCenter(car_d);
   }
   last_target_d = *next_d;
+  last_last_target_speed = last_target_speed;
   last_target_speed = *next_speed;
 
   std::cout << "Next behavior: speed " << *next_speed << " d " << *next_d << std::endl;
@@ -98,11 +119,15 @@ bool Planner::CanSwitchToD(double seconds_ahead, double car_s, double car_d, vec
   }
   const int BUFFER_BEHIND = 15;
   const int BUFFER_AHEAD = 30;
+  std::cout << "target d is: " << target_d << std::endl;
   for (const auto& sensor_datum : sensor_fusion) {
     double other_car_s, other_car_d;
     PredictCarSD(sensor_datum, seconds_ahead, &other_car_s, &other_car_d);
 
     double distance_to_car = other_car_s - car_s;
+    std::cout << "distance to car: " << distance_to_car
+            << "; other car's d: " << other_car_d
+            << std::endl;
 
     if (distance_to_car > -BUFFER_BEHIND
         && distance_to_car < BUFFER_AHEAD
