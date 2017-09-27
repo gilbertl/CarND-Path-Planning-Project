@@ -7,7 +7,7 @@
 #include <vector>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
-#include "Planner.h"
+#include "planner.h"
 #include "json.hpp"
 
 using namespace std;
