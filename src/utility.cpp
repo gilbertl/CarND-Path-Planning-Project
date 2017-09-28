@@ -3,6 +3,7 @@
 #include "Eigen-3.3/Eigen/LU"
 #include "utility.h"
 #include <math.h>
+#include <iostream>
 
 
 namespace utility {
@@ -157,5 +158,22 @@ Eigen::Matrix3f T;
       (*ys)[i] = globalV[1];
     }
   }
+
+  bool inBetween(double target, double a, double b, double buffer) {
+    double upper_limit = fmax(a, b);
+    double lower_limit = fmin(a, b);
+    return target <= upper_limit + buffer && target >= lower_limit - buffer;
+  }
+
+  void applyLimits(double lower_limit, double upper_limit, double* curr_lower_limit, double* curr_upper_limit) {
+    if (lower_limit > *curr_upper_limit || upper_limit < *curr_lower_limit) {
+      std::cout << "Failed to apply (" << lower_limit << ", " << upper_limit << ") "
+          << " to (" << *curr_lower_limit << ", " << *curr_upper_limit << ") " << std::endl;
+      return;
+    }
+    *curr_lower_limit = fmax(*curr_lower_limit, lower_limit);
+    *curr_upper_limit = fmin(*curr_upper_limit, upper_limit);
+  }
+
 
 }  // end namepsace utility

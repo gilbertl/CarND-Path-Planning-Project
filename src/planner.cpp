@@ -36,24 +36,30 @@ const double Planner::IDEAL_SPEED_M_PER_S = 22;
 const double Planner::MAX_ACCELERATION_M_PER_S2 = 9.5;
 const double Planner::MAX_JERK_M_PER_S3 = 9.5;
 
-double Planner::MaxSpeedWithoutJerk(bool accelerating) {
-  // Satisfy max acceleration.
-  double maxSpeed = accelerating
-      ? MAX_ACCELERATION_M_PER_S2 * SECS_PER_FRAME + last_target_speed
-      : -MAX_ACCELERATION_M_PER_S2 * SECS_PER_FRAME + last_target_speed;
+void Planner::MaxSpeedsWithoutJerk(double* min_speed, double* max_speed) {
+  *min_speed = std::numeric_limits<int>::lowest();
+  *max_speed = std::numeric_limits<int>::max();
+  // Satisfy speed limits.
+  utility::applyLimits(0, IDEAL_SPEED_M_PER_S, min_speed, max_speed);
+  // SAtisfy acceleration limits.
+  utility::applyLimits(
+      -MAX_ACCELERATION_M_PER_S2 * SECS_PER_FRAME + last_target_speed,
+      MAX_ACCELERATION_M_PER_S2 * SECS_PER_FRAME + last_target_speed,
+      min_speed, max_speed);
   // Satisfy max jerk.
-  double jerkLimit1 = MAX_JERK_M_PER_S3 * SECS_PER_FRAME * SECS_PER_FRAME 
-      + 2 * last_target_speed - last_last_target_speed;
-  double jerkLimit2 = -MAX_JERK_M_PER_S3 * SECS_PER_FRAME * SECS_PER_FRAME 
-      + 2 * last_target_speed - last_last_target_speed;
-  return accelerating 
-      ? fmin(IDEAL_SPEED_M_PER_S, fmin(maxSpeed, fmax(jerkLimit1, jerkLimit2))) 
-      : fmax(0, fmax(maxSpeed, fmin(jerkLimit1, jerkLimit2)));
+  utility::applyLimits(
+      -MAX_JERK_M_PER_S3 * SECS_PER_FRAME * SECS_PER_FRAME
+          + 2 * last_target_speed - last_last_target_speed,
+      MAX_JERK_M_PER_S3 * SECS_PER_FRAME * SECS_PER_FRAME
+          + 2 * last_target_speed - last_last_target_speed,
+      min_speed, max_speed);
 }
 
 void Planner::NextBehavior(double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion, double* next_speed, double* next_d) {
-  double max_speed = MaxSpeedWithoutJerk(true);
-  double min_speed = MaxSpeedWithoutJerk(false);
+  double min_speed, max_speed;
+  MaxSpeedsWithoutJerk(&min_speed, &max_speed);
+
+  std::cout << "max_speed: " << max_speed << ", min_speed: " << min_speed << std::endl;
 
   double car_ahead_speed;
   if (last_target_d != - 1 && fabs(last_target_d - car_d) > 0.6) {
@@ -70,14 +76,23 @@ void Planner::NextBehavior(double seconds_ahead, double car_s, double car_d, vec
     *next_speed = max_speed;
     *next_d = ClosestCenter(car_d) + 4;
   } else  {
-    *next_speed = fmax(min_speed, fmax(IDEAL_SPEED_M_PER_S, car_ahead_speed * 0.8));
+    std::cout << "car_ahead_speed: " << car_ahead_speed << std::endl;
+    *next_speed = fmax(min_speed, fmin(max_speed, car_ahead_speed * 0.95));
     *next_d = ClosestCenter(car_d);
   }
+
+  double a1 = (last_target_speed - last_last_target_speed) / SECS_PER_FRAME;
+  double a2 = (*next_speed - last_target_speed) / SECS_PER_FRAME;
+  double j = (a2 - a1) / SECS_PER_FRAME;
+  std::cout << "a1: " << a1 << ", a2: " << a2 << ", j: " << j << std::endl;
+
+
   last_target_d = *next_d;
   last_last_target_speed = last_target_speed;
   last_target_speed = *next_speed;
 
-  std::cout << "Next behavior: speed " << *next_speed << " d " << *next_d << std::endl;
+  std::cout << "Currently in d: " << car_d 
+      <<  " Next behavior: speed " << *next_speed << " d " << *next_d << std::endl;
 }
 
 void Planner::PredictCarSD(vector<double> sensor_fusion_datum, double num_secs_ahead, double* s, double* d) {
@@ -93,7 +108,7 @@ void Planner::PredictCarSD(vector<double> sensor_fusion_datum, double num_secs_a
 bool Planner::TooCloseToCarAhead(
     double seconds_ahead, double car_s, double car_d, 
     vector<vector<double>> sensor_fusion, double* car_ahead_speed) {
-  const int BUFFER_AHEAD = 20;
+  const int BUFFER_AHEAD = 25;
   const int BUFFER_BEHIND = -5;
   for (const auto& sensor_datum : sensor_fusion) {
     double other_car_s, other_car_d;
@@ -101,7 +116,7 @@ bool Planner::TooCloseToCarAhead(
 
     double distance_to_car = other_car_s - car_s;
     
-    if (fabs(other_car_d - car_d) < 1.5 
+    if (fabs(other_car_d - car_d) < 2.5 
         && distance_to_car > BUFFER_BEHIND
         && distance_to_car < BUFFER_AHEAD) {
       double vx = sensor_datum[VX_IDX];
@@ -117,9 +132,10 @@ bool Planner::CanSwitchToD(double seconds_ahead, double car_s, double car_d, vec
   if (target_d < 2 || target_d > 10) {
     return false;
   }
-  const int BUFFER_BEHIND = 15;
-  const int BUFFER_AHEAD = 30;
-  std::cout << "target d is: " << target_d << std::endl;
+  std::cout << "inspecting, our target d is: " << target_d << std::endl;
+  const int BUFFER_BEHIND = 24;
+  const int BUFFER_AHEAD = 24;
+  // Check for cars that are positionally too close.
   for (const auto& sensor_datum : sensor_fusion) {
     double other_car_s, other_car_d;
     PredictCarSD(sensor_datum, seconds_ahead, &other_car_s, &other_car_d);
@@ -131,7 +147,7 @@ bool Planner::CanSwitchToD(double seconds_ahead, double car_s, double car_d, vec
 
     if (distance_to_car > -BUFFER_BEHIND
         && distance_to_car < BUFFER_AHEAD
-        && fabs(other_car_d - target_d) < 1.5) {
+        && utility::inBetween(other_car_d, target_d, car_d, 1)) {
       return false;
     }
   }

@@ -5,8 +5,6 @@
 
 using std::vector;
 
-enum Behavior { STAY_IDEAL_SPEED, SLOW_TO_SPEED_AHEAD, SWITCH_LEFT, SWITCH_RIGHT };
-
 class Planner {
  public:
   Planner(vector<double> map_waypoints_x,
@@ -38,7 +36,7 @@ class Planner {
   static const double MAX_ACCELERATION_M_PER_S2;
   static const double MAX_JERK_M_PER_S3;
 
-  double MaxSpeedWithoutJerk(bool accelerating);
+  void MaxSpeedsWithoutJerk(double *min_speed, double *max_speed);
 
   void NextBehavior(
       double seconds_ahead, double car_s, double car_d, vector<vector<double>> sensor_fusion, double* next_speed, double* next_d);

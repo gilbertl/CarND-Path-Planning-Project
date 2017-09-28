@@ -17,6 +17,10 @@ namespace utility {
   void globalToLocal(double ref_x, double ref_y, double ref_psi, vector<double>* xs, vector<double>* ys);
 
   void localToGlobal(double car_x, double car_y, double car_psi, vector<double>* xs, vector<double>* ys);
+
+  bool inBetween(double target, double a, double b, double buffer);
+
+  void applyLimits(double lower_limit, double upper_limit, double* curr_lower_limit, double* curr_upper_limit);
 }
 
 #endif
